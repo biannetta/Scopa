@@ -1,18 +1,76 @@
 function love.load()
-  -- variable inits
-  deck = {}
-  suits = { 'C', 'D', 'S', 'B' }
-  ranks = { '1','2','3','4','5','6','7','J','Q','K' }
-  players = {}
-  field = {}
-  activeSet = {}
-  currentSelection = {}
   
-  cardHeight = 160
-  cardWidth = 120
-  cardCorner = 10  
+  game = {
+    deck = {},
+    players = {},
+    field = {},
+    cursor = 1,
+    currentPlayer = 1,
+    currentSelection = {},
+    state = "HAND",
+    
+    activePlayer = function(self)
+      return self.players[self.currentPlayer]
+    end,
+
+    activeSet = function(self)
+      if self.state == "HAND" then
+        return self:activePlayer().hand
+      elseif self.state == "FIELD" then
+        return self.field
+      end
+    end,
+    
+    advancePlayer = function(self)
+      self.currentPlayer = self.currentPlayer + 1
+      if self.currentPlayer > #self.players then
+        self.currentPlayer = 1
+      end
+    end,
+
+    nextTurn = function(self)
+      self:resetCursor()
+      self:advancePlayer()
+      self:selectHand()
+    end,
+
+    incrementCursor = function(self)
+      self.cursor = self.cursor + 1
+      if self.cursor > #self:activeSet() then
+        self.cursor = 1
+      end
+    end,
+    
+    decrementCursor = function(self)
+      self.cursor = self.cursor - 1
+      if self.cursor < 1  then
+        self.cursor = #self:activeSet()
+      end
+    end,
+
+    resetCursor = function(self)
+      self.cursor = 1
+    end,
+
+    selectedCard = function(self)
+      return self:activeSet()[self.cursor]
+    end,
+
+    selectHand = function(self)
+      self.state = "HAND"
+    end,
+
+    selectField = function(self)
+      self.state = "FIELD"
+      self.currentSelection = {}
+      self:resetCursor()
+    end
+  }
   
-  function initializeDeck()   
+  function initializeDeck(deck)   
+    local suits = { 'C', 'D', 'S', 'B' }
+    local ranks = { '1','2','3','4','5','6','7','J','Q','K' }
+
     for i,suit in ipairs(suits) do
       for j,rank in ipairs(ranks) do
         table.insert(deck,{
@@ -34,59 +92,55 @@ function love.load()
     end
   end
   
-  function dealCards(hand, noCards)
+  function dealCards(hand, noCards, deck)
     for j=1,noCards do
       table.insert(hand, table.remove(deck,1))
     end 
   end
 
-  function dealPlayers(players)
+  function dealPlayers(players, deck)
     for i=1,#players do
-      dealCards(players[i].hand,3)      
+      dealCards(players[i].hand,3, deck)      
     end
   end
 
-  function selectField()
-    activeSet = field
-    currentCard = 1
-    currentSelection = {}
-  end
+  function isCardInSet(targetCard, set)
+    local cardInSet = false
 
-  function checkIfSelected(currentCard)
-    local cardIsSelected = false
+    if set == nil or targetCard == nil then
+      return false
+    end
 
-    if currentSelection ~= nil then
-      for i,card in ipairs(currentSelection) do
-        if card == currentCard then
-          cardIsSelected = true
-        end
+    for i,card in ipairs(set) do
+      if card == targetCard then
+        cardInSet = true
       end
     end
 
-    return cardIsSelected
+    return cardInSet
   end
 
-  function toggleSelection(selectedCard)
-    local currenPosition = 0
+  function toggleSelection(selectedCard, selection)
+    local x = 0
 
-    for i,card in ipairs(currentSelection) do
+    for i,card in ipairs(selection) do
       if card == selectedCard then
-        currenPosition = i
+        x = i
       end
     end
 
-    if currenPosition > 0 then
-      table.remove(currentSelection, currenPosition)
+    if x > 0 then
+      table.remove(selection, x)
     else
-      table.insert(currentSelection, selectedCard)
+      table.insert(selection, selectedCard)
     end
   end
 
-  function summarizeSelection()
+  function summarizeSelection(set)
     local sum = 0
 
-    if currentSelection ~= nil then
-      for _,card in ipairs(currentSelection) do
+    if set ~= nil then
+      for _,card in ipairs(set) do
         sum = sum + card.value
       end
     end
@@ -104,84 +158,59 @@ function love.load()
     end
   end
 
-  function captureCards(targetCard)
-    if targetCard.value == summarizeSelection() then
+  function captureCards(targetCard, selection)
+    if targetCard.value == summarizeSelection(selection) then
       local capturedCards = {}
       
-      table.insert(capturedCards, currentSelection)
-      table.insert(capturedCards, players[currentPlayer].selectedCard)
-      table.insert(players[currentPlayer].capturedCards, capturedCards)
-      print(players[currentPlayer]:totalCaptured())
+      table.insert(capturedCards, game.currentSelection)
+      table.insert(capturedCards, game:activePlayer().selectedCard)
+      table.insert(game:activePlayer().capturedCards, capturedCards)
 
-      removeCards(players[currentPlayer].hand, { players[currentPlayer].selectedCard })
-      removeCards(field, currentSelection)
+      removeCards(game:activePlayer().hand, { game:activePlayer().selectedCard })
+      removeCards(game.field, game.currentSelection)
 
-      players[currentPlayer].selectedCard = nil
-      currentSelection = nil
+      game:activePlayer().selectedCard = nil
+      game.currentSelection = nil
 
-      nextPlayer()
+      game:nextTurn()
     else
       print('Cards cannot be captured')
     end
   end
 
-  function layCardInField(targetCard)
+  function layCardInField(targetCard, field)
     table.insert(field, targetCard)
 
-    removeCards(players[currentPlayer].hand, { targetCard })
+    removeCards(game:activePlayer().hand, { targetCard })
 
-    players[currentPlayer].selectedCard = nil
-    currentSelection = nil
+    game:activePlayer().selectedCard = nil
+    game.currentSelection = nil
 
-    nextPlayer()
-  end
-
-  function nextPlayer()
-    currentCard = 1
-    currentPlayer = currentPlayer + 1
-    if currentPlayer > #players then
-      currentPlayer = 1
-    end
-    activeSet = players[currentPlayer].hand
+    game:nextTurn()
   end
 
   function startGame()
-    table.insert(players, {
-      name = "Player A",
-      hand = {},
-      selectedCard = nil,
-      capturedCards = {},
-      totalCaptured = function(self)
-        if self.capturedCards == nil then
-          return 0
-        else
-          return #self.capturedCards
-        end
-      end
-    })
-    table.insert(players, {
-      name = "Player B",
-      hand = {},
-      selectedCard = nil,
-      capturedCards = {},
-      totalCaptured = function(self)
-        if self.capturedCards == nil then
-          return 0
-        else
-          return #self.capturedCards
-        end
-      end
-    })
+    local maxPlayers = 2
 
-    field = {}
+    for i=1,maxPlayers do
+      table.insert(game.players, {
+        name = "Player "..i,
+        hand = {},
+        selectedCard = nil,
+        capturedCards = {},
+        totalCaptured = function(self)
+          if self.capturedCards == nil then
+            return 0
+          else
+            return #self.capturedCards
+          end
+        end
+      })
+    end
     
-    initializeDeck()
-    dealPlayers(players)
-    dealCards(field, 4)
-
-    currentPlayer = 1
-    currentCard = 1
-    activeSet = players[currentPlayer].hand
+    initializeDeck(game.deck)
+    dealPlayers(game.players, game.deck)
+    dealCards(game.field, 4, game.deck)
   end
 
   startGame()
@@ -189,8 +218,11 @@ function love.load()
 end
 
 function love.draw()
-  local function drawCard(text, xPos, yPos, highlight, selected)
-    
+  local cardHeight = 160
+  local cardWidth = 120
+  local cardCorner = 10  
+  
+  local function drawCard(text, xPos, yPos, highlight, selected) 
     local textOffsetX = xPos + 5
     local textOffsetY = yPos + 5
     
@@ -218,86 +250,72 @@ function love.draw()
     love.graphics.print(text, textOffsetX, textOffsetY)
   end
 
-  local function drawHand(hand, xPos, yPos)
+  local function drawHand(hand, selection, xPos, yPos, active)
     for j,card in ipairs(hand) do
-      local isHighlighted = (hand == activeSet and j == currentCard)
-      local isSelected = players[currentPlayer].selectedCard == card
+      local isHighlighted = (active and j == game.cursor)
+      local isSelected = isCardInSet(card, selection)
       drawCard(card:toString(), xPos + (cardWidth + 10) * (j - 1), yPos, isHighlighted, isSelected)
     end 
-  end
-
-  local function drawField(field, xPos, yPos)
-    for j,card in ipairs(field) do 
-      local isHighlighted = (field == activeSet and j == currentCard)
-      local isSelected = checkIfSelected(card)
-      drawCard(card:toString(), xPos + (cardWidth + 10) * (j - 1), yPos, isHighlighted, isSelected)
-    end
   end
 
   love.graphics.setBackgroundColor(0.1, 0.1, 0.15)
   love.graphics.setColor(1, 1, 1)
   
   -- Display Player Hands
-  for i,player in ipairs(players) do
+  for i,player in ipairs(game.players) do
     local startX = (500 * (i - 1)) + 10
+    local activeHand = game:activePlayer() == player and game.state == "HAND"
 
     love.graphics.print(player.name..' Hand', startX, 10)
     love.graphics.print('Total Captured '..player:totalCaptured(), startX + 100, 10)
-    drawHand(player.hand, startX, 35)
+    drawHand(player.hand, { player.selectedCard }, startX, 35, activeHand)
   end
   
   -- Display Field
   love.graphics.setColor(1, 1, 1)
   love.graphics.print('Field:', 10, 50 + cardHeight)
-  drawField(field, 10, 70 + cardHeight)
-  love.graphics.print('Current Selected Value: '..summarizeSelection(), 10, 85 + (cardHeight * 2))
+  drawHand(game.field, game.currentSelection, 10, 70 + cardHeight, (game.state == "FIELD"))
+  love.graphics.print('Current Selected Value: '..summarizeSelection(game.currentSelection), 10, 85 + (cardHeight * 2))
   
   -- Display Insructions
   love.graphics.setColor(1, 1, 1)
-  love.graphics.print('Cards Remaining: '..#deck, 10, 110 + (cardHeight * 2))
+  love.graphics.print('Cards Remaining: '..#game.deck, 10, 110 + (cardHeight * 2))
   love.graphics.print('User arrow keys and press "space" to select a card.', 10, 135 + (cardHeight * 2))
 end
 
 function love.keypressed(key)
   if key == "j" or key == "left" then
-    currentCard = currentCard - 1
-    if currentCard < 1  then
-      currentCard = #activeSet
-    end
+    game:decrementCursor() 
   end
   
   if key == "k" or key == "right" then
-    currentCard = currentCard + 1
-    if currentCard > #activeSet then
-      currentCard = 1
-    end
+    game:incrementCursor()
   end
 
-  if key == "u" and activeSet == field then
-    activeSet = players[currentPlayer].hand
-    players[currentPlayer].selectedCard = nil
+  if key == "u" and game.state == "FIELD" then
+    game:activePlayer().selectedCard = nil
+    game:selectHand()
+    game.currentSelection = {}
   end
 
   if key == "space" then
-    if activeSet ~= field then
-      players[currentPlayer].selectedCard = activeSet[currentCard]
-      selectField()
-    elseif activeSet == field then
-      if toggleSelection(activeSet[currentCard]) then
-        table.insert(currentSelection, activeSet[currentCard])
-      end
+    if game.state == "HAND" then
+      game:activePlayer().selectedCard = game:selectedCard()
+      game:selectField()
+    elseif game.state == "FIELD" then
+      toggleSelection(game:selectedCard(), game.currentSelection)
     end
   end
 
   if key == "return" then
-    local selectedCard = players[currentPlayer].selectedCard
+    local selectedCard = game:activePlayer().selectedCard
 
     if selectedCard ~= nil then
-      captureCards(selectedCard)
+      captureCards(selectedCard, game.currentSelection)
     end
   end
 
   if key == "x" then
-    layCardInField(players[currentPlayer].selectedCard)
+    layCardInField(game:activePlayer().selectedCard, game.field)
   end
 end
