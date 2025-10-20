@@ -1,5 +1,12 @@
 function love.load()
+  cardHeight = 100
+  cardWidth = 63
   
+  cardSheet = love.graphics.newImage("Spada_Cards_Label.png")
+
+  toastMessages = nil
+  toastLength = 5
+
   game = {
     deck = {},
     players = {},
@@ -28,10 +35,40 @@ function love.load()
       end
     end,
 
+    clearSelection = function(self)
+      self.currentSelection = nil
+    end,
+
+    dealNewCards = function(self)
+      local handCount = 0
+
+      for _,player in ipairs(self.players) do
+        if player.hand ~= nil then
+          handCount = handCount + #player.hand
+        end
+      end
+
+      return handCount == 0
+    end,
+
+    playCard = function(self)
+    end,
+
     nextTurn = function(self)
-      self:resetCursor()
-      self:advancePlayer()
-      self:selectHand()
+      if self.deck == nil then
+        print("Game Over")
+      else
+        self:resetCursor()
+        self:advancePlayer()
+        self:selectHand()
+        
+        self:activePlayer().selectedCard = nil
+        self.currentSelection = nil
+
+        if self:dealNewCards() then
+          dealPlayers(self.players, self.deck)
+        end
+      end
     end,
 
     incrementCursor = function(self)
@@ -57,6 +94,8 @@ function love.load()
     end,
 
     selectHand = function(self)
+      self:activePlayer().selectedCard = nil
+      self:clearSelection()
       self.state = "HAND"
     end,
 
@@ -104,7 +143,8 @@ function love.load()
     end
   end
 
-  function isCardInSet(targetCard, set)
+  function isCardInSet(targetCard, set, matchOption)
+    matchOption = matchOption or 0
     local cardInSet = false
 
     if set == nil or targetCard == nil then
@@ -112,7 +152,9 @@ function love.load()
     end
 
     for i,card in ipairs(set) do
-      if card == targetCard then
+      if matchOption == 0 and card == targetCard then
+        cardInSet = true
+      elseif matchOption == 1 and card.value == targetCard.value then
         cardInSet = true
       end
     end
@@ -159,34 +201,39 @@ function love.load()
   end
 
   function captureCards(targetCard, selection)
-    if targetCard.value == summarizeSelection(selection) then
-      local capturedCards = {}
-      
-      table.insert(capturedCards, game.currentSelection)
-      table.insert(capturedCards, game:activePlayer().selectedCard)
-      table.insert(game:activePlayer().capturedCards, capturedCards)
-
-      removeCards(game:activePlayer().hand, { game:activePlayer().selectedCard })
-      removeCards(game.field, game.currentSelection)
-
-      game:activePlayer().selectedCard = nil
-      game.currentSelection = nil
-
-      game:nextTurn()
-    else
-      print('Cards cannot be captured')
+    if targetCard.value ~= summarizeSelection(selection) then
+      return false
     end
+
+    if isCardInSet(targetCard, game.field, 1) and #selection ~= 1 then
+      return false
+    end
+
+    local capturedCards = {}
+      
+    table.insert(capturedCards, game.currentSelection)
+    table.insert(capturedCards, game:activePlayer().selectedCard)
+    table.insert(game:activePlayer().capturedCards, capturedCards)
+
+    removeCards(game:activePlayer().hand, { game:activePlayer().selectedCard })
+    removeCards(game.field, game.currentSelection)
+
+    return true
   end
 
-  function layCardInField(targetCard, field)
-    table.insert(field, targetCard)
+  function moveCardToSet(fromSet, card, toSet)
+    table.insert(toSet, card)
+    removeCards(fromSet, { card })
+  end
 
-    removeCards(game:activePlayer().hand, { targetCard })
+  function layCardInField(targetCard)
+    if isCardInSet(game:activePlayer().selectedCard, game.field, 1) then
+      return false
+    end
 
-    game:activePlayer().selectedCard = nil
-    game.currentSelection = nil
-
-    game:nextTurn()
+    moveCardToSet(game:activePlayer().hand, targetCard, game.field)
+    
+    return true
   end
 
   function startGame()
@@ -217,44 +264,46 @@ function love.load()
 
 end
 
-function love.draw()
-  local cardHeight = 160
-  local cardWidth = 120
-  local cardCorner = 10  
+function love.update(dt)
+  if toastMessages ~= nil then
+    toastLength = toastLength - dt
+  end
   
-  local function drawCard(text, xPos, yPos, highlight, selected) 
+  if toastLength < 0 then
+    toastMessages = nil
+    toastLength = 5
+  end
+end
+
+function love.draw()
+  local function drawCard(card, xPos, yPos, highlight, selected) 
     local textOffsetX = xPos + 5
     local textOffsetY = yPos + 5
+    local xOffset = ((card.value - 1) * cardWidth) + (card.value - 1)
+    local cardQuad = love.graphics.newQuad(xOffset, 0, cardWidth, cardHeight, cardSheet)
+    
+    love.graphics.setColor(1, 1, 1)
     
     if highlight then
-      love.graphics.setColor(1, 1, 0, 0.3)
-      love.graphics.rectangle("fill", xPos - 5, yPos - 5, cardWidth + 10, cardHeight + 10, cardCorner)
-
       love.graphics.setColor(1, 1, 0)
-      love.graphics.setLineWidth(3)
-      love.graphics.rectangle("line", xPos - 5, yPos - 5, cardWidth + 10, cardHeight + 10, cardCorner)
+      love.graphics.setLineWidth(2)
+      love.graphics.rectangle("line", xPos - 2, yPos - 2, cardWidth + 4, cardHeight + 4, 5)
     end
 
     if selected then
-      love.graphics.setColor(0.45, 0.65, 0.8)
+      love.graphics.setColor(1, 1, 0)
     else
-      love.graphics.setColor(0.2, 0.5, 0.9)
+      love.graphics.setColor(1, 1, 1)
     end
-    love.graphics.rectangle('fill', xPos, yPos, cardWidth, cardHeight, cardCorner)
-    
-    love.graphics.setColor(0, 0, 0)
-    love.graphics.setLineWidth(2)
-    love.graphics.rectangle("line", xPos, yPos, cardWidth, cardHeight, cardCorner)
 
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print(text, textOffsetX, textOffsetY)
+    love.graphics.draw(cardSheet, cardQuad, xPos, yPos)
   end
 
   local function drawHand(hand, selection, xPos, yPos, active)
     for j,card in ipairs(hand) do
       local isHighlighted = (active and j == game.cursor)
       local isSelected = isCardInSet(card, selection)
-      drawCard(card:toString(), xPos + (cardWidth + 10) * (j - 1), yPos, isHighlighted, isSelected)
+      drawCard(card, xPos + (cardWidth + 10) * (j - 1), yPos, isHighlighted, isSelected)
     end 
   end
 
@@ -265,7 +314,8 @@ function love.draw()
   for i,player in ipairs(game.players) do
     local startX = (500 * (i - 1)) + 10
     local activeHand = game:activePlayer() == player and game.state == "HAND"
-
+    
+    love.graphics.setColor(1, 1, 1)
     love.graphics.print(player.name..' Hand', startX, 10)
     love.graphics.print('Total Captured '..player:totalCaptured(), startX + 100, 10)
     drawHand(player.hand, { player.selectedCard }, startX, 35, activeHand)
@@ -275,12 +325,16 @@ function love.draw()
   love.graphics.setColor(1, 1, 1)
   love.graphics.print('Field:', 10, 50 + cardHeight)
   drawHand(game.field, game.currentSelection, 10, 70 + cardHeight, (game.state == "FIELD"))
-  love.graphics.print('Current Selected Value: '..summarizeSelection(game.currentSelection), 10, 85 + (cardHeight * 2))
-  
-  -- Display Insructions
+
+
   love.graphics.setColor(1, 1, 1)
+  love.graphics.print('Current Selected Value: '..summarizeSelection(game.currentSelection), 10, 85 + (cardHeight * 2))
   love.graphics.print('Cards Remaining: '..#game.deck, 10, 110 + (cardHeight * 2))
-  love.graphics.print('User arrow keys and press "space" to select a card.', 10, 135 + (cardHeight * 2))
+  love.graphics.print('User arrow keys and press "space" to select a card. Press "enter" to capture cards, press "x" to lay selected card on table', 10, 135 + (cardHeight * 2))
+
+  if toastMessages ~= nil then
+    love.graphics.print(toastMessages, 10, 155 + (cardHeight * 2))
+  end
 end
 
 function love.keypressed(key)
@@ -293,9 +347,8 @@ function love.keypressed(key)
   end
 
   if key == "u" and game.state == "FIELD" then
-    game:activePlayer().selectedCard = nil
+    game:resetCursor()
     game:selectHand()
-    game.currentSelection = {}
   end
 
   if key == "space" then
@@ -307,15 +360,19 @@ function love.keypressed(key)
     end
   end
 
-  if key == "return" then
-    local selectedCard = game:activePlayer().selectedCard
-
-    if selectedCard ~= nil then
-      captureCards(selectedCard, game.currentSelection)
+  if key == "return" and game:activePlayer().selectedCard ~= nil then
+    if captureCards(game:activePlayer().selectedCard, game.currentSelection) then
+      game:nextTurn()
+    else
+      toastMessages = "Cannot capture selected cards"
     end
   end
 
-  if key == "x" then
-    layCardInField(game:activePlayer().selectedCard, game.field)
+  if key == "x" and game:activePlayer().selectedCard ~= nil then 
+    if layCardInField(game:activePlayer().selectedCard) then
+      game:nextTurn()
+    else
+      toastMessages = "Card cannot be layed. There are capturable cards in the field"
+    end
   end
 end
