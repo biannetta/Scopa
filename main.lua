@@ -1,6 +1,22 @@
 function love.load()
   Card = require "card"
   Game = require "game"
+
+  local h = love.graphics.getHeight()
+  local w = love.graphics.getWidth()
+  local max = 12
+  
+  grid = {}
+
+  for i=1,max do
+    grid[i] = {}
+    
+    for j=1,max do
+      local x = (w/max) * (j-1)
+      local y = (h/max) * (i-1)
+      grid[i][j] = { x, y }
+    end
+  end
   
   toastMessages = nil
   toastLength = 5
@@ -135,41 +151,52 @@ function love.update(dt)
 end
 
 function love.draw()
-  local function drawHand(hand, selection, xPos, yPos, active)
+  for i=1,#grid do
+    for j=1,#grid[i] do
+      love.graphics.points(grid[i][j][1], grid[i][j][2])
+    end
+  end
+
+  local function drawHand(hand, selection, row, col, active)
     for j,card in ipairs(hand) do
       local isHighlighted = (active and j == game.cursor)
       local isSelected = isCardInSet(card, selection)
-      card:draw(xPos + (Card.width + 10) * (j - 1), yPos, isHighlighted, isSelected)
+      local pos = grid[row][col+j]
+      card:draw(pos[1], pos[2], isHighlighted, isSelected)
     end 
   end
 
   love.graphics.setBackgroundColor(0.1, 0.1, 0.15)
   love.graphics.setColor(1, 1, 1)
-  
+
   -- Display Player Hands
+  local playerGrid = {
+    grid[2],
+    grid[8]
+  }
+
   for i,player in ipairs(game.players) do
-    local startX = (500 * (i - 1)) + 10
+    local cardArea = playerGrid[i][3]
     local activeHand = game:activePlayer() == player and game.state == "HAND"
     
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print(player.name..' Hand', startX, 10)
-    love.graphics.print('Total Captured '..player:totalCaptured(), startX + 100, 10)
-    drawHand(player.hand, { player.selectedCard }, startX, 35, activeHand)
+    love.graphics.print(player.name..' Hand '..'Total Captured '..player:totalCaptured(), cardArea[1], cardArea[2] - 25)
+    drawHand(player.hand, { player.selectedCard }, 2, 2, activeHand)
   end
   
   -- Display Field
   love.graphics.setColor(1, 1, 1)
-  love.graphics.print('Field:', 10, 50 + Card.height)
-  drawHand(game.field, game.currentSelection, 10, 70 + Card.height, (game.state == "FIELD"))
+  drawHand(game.field, game.currentSelection, 5, 2, (game.state == "FIELD"))
 
-
+  --[[
   love.graphics.setColor(1, 1, 1)
   love.graphics.print('Current Selected Value: '..summarizeSelection(game.currentSelection), 10, 85 + (Card.height * 2))
   love.graphics.print('Cards Remaining: '..game.deck:count(), 10, 110 + (Card.height * 2))
   love.graphics.print('User arrow keys and press "space" to select a card. Press "enter" to capture cards, press "x" to lay selected card on table', 10, 135 + (Card.height * 2))
+  ]]
 
   if toastMessages ~= nil then
-    love.graphics.print(toastMessages, 10, 155 + (Card.height * 2))
+    love.graphics.print(toastMessages, 10, 600)
   end
 end
 
