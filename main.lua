@@ -23,21 +23,6 @@ function love.load()
   
   game = Game()
   game:init(2) 
-  
-  function moveCardToSet(fromSet, card, toSet)
-    table.insert(toSet, card)
-    removeCards(fromSet, { card })
-  end
-
-  function layCardInField(targetCard)
-    if isCardInSet(game.activePlayer.selectedCard, game.field, 1) then
-      return false
-    end
-
-    moveCardToSet(game.activePlayer.hand, targetCard, game.field)
-    
-    return true
-  end
 end
 
 function love.update(dt)
@@ -112,14 +97,6 @@ function love.keypressed(key)
       game:nextTurn()
     else
       toastMessages = "Cannot capture selected cards"
-    end
-  end
-
-  if key == "x" and game.activePlayer.selectedCard ~= nil then 
-    if layCardInField(game.activePlayer.selectedCard) then
-      game:nextTurn()
-    else
-      toastMessages = "Card cannot be layed. There are capturable cards in the field"
     end
   end
 end
