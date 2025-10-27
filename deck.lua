@@ -2,9 +2,6 @@ local Object = require "classic"
 local Card = require "card"
 local Deck = Object:extend()
 
-local suits = { 'C', 'D', 'S', 'B' }
-local ranks = { '1','2','3','4','5','6','7','J','Q','K' }
-
 function Deck:new(size)
   self.size = size or 40
   self._deck = {}
@@ -14,9 +11,9 @@ function Deck:new(size)
 end
 
 function Deck:init()
-  for i,suit in ipairs(suits) do
-    for j,rank in ipairs(ranks) do
-      table.insert(self._deck, Card(suit, rank, j))
+  for i,suit in ipairs(Card.suits) do
+    for j,rank in ipairs(Card.ranks) do
+      table.insert(self._deck, Card(rank, suit, j))
     end
   end
 end
@@ -45,6 +42,15 @@ function Deck:dealCard()
   else
     return nil
   end
+end
+
+function Deck:dealCards(noCards)
+  local set = {}
+  for j=1,noCards do
+    table.insert(set, self:dealCard())
+  end 
+
+  return set
 end
 
 return Deck
