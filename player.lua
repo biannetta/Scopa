@@ -1,4 +1,5 @@
 local Object = require "classic"
+local Card = require "card"
 local Player = Object:extend()
 
 function Player:new(id, name)
@@ -7,10 +8,16 @@ function Player:new(id, name)
   self.hand = {}
   self.selectedCard = nil
   self.capturedCards = {}
+  self.scopas = 0
+  self.score = 0
 end
 
 function Player:selectCard(card)
   self.selectedCard = card
+end
+
+function Player:addScopa()
+  self.scopas = self.scopas + 1
 end
 
 function Player:captureCards(captureSet)
@@ -27,6 +34,35 @@ function Player:totalCaptured()
   else
     return #self.capturedCards
   end
+end
+
+function Player:calculateScore(numPlayers, deckSize)
+  local roundScore = {}
+
+  -- Add scopas
+  self.score = self.score + self.scopas
+  roundScore['scopas'] = self.scopas
+
+  -- Point for most cards
+  roundScore['cardCount'] = self:totalCaptured()
+  if self:totalCaptured() > (deckSize/numPlayers) then
+    self.score = self.score + 1
+  end
+
+  if Card:hasSetteBello(self.capturedCards) then
+    self.score = self.score + 1
+    roundScore['setteBello'] = 1
+  end
+
+  return roundScore
+
+end
+
+function Player:reset()
+  self.hand = {}
+  self.selectedCard = nil
+  self.capturedCards = {}
+  self.scopas = 0
 end
 
 function Player:toString()

@@ -29,14 +29,33 @@ function Card:getDisplayHeight()
   return (Card.height * Card.scale) + (Card.margin * 2)
 end
 
+function Card:hasSetteBello(set)
+  local hasSetteBello = false
+  
+  for _,card in ipairs(set) do
+    if (card.rank == '7') then
+      if (card.suit == 'DENARI') then
+        hasSetteBello = true
+      end
+    end
+  end
+
+  return hasSetteBello
+end
+
 function Card:toString()
   return self.rank.." of "..self.suit
 end
 
-function Card:draw(xPos, yPos, highlight, selected)
+function Card:draw(xPos, yPos, highlight, selected, rotated)
+  highlight = highlight or false
+  selected = selected or false
+  rotated = rotated or false
+
   local cardSprite = Card.sprites[self.suit]
   local cardOffset = ((self.value - 1) * Card.width) + (self.value - 1)
   local cardQuad = love.graphics.newQuad(cardOffset, 0, Card.width, Card.height, cardSprite)
+  local cardRotation = (rotated) and 1.5 * math.pi or 0
 
   love.graphics.setColor(1, 1, 1)
   
@@ -52,7 +71,7 @@ function Card:draw(xPos, yPos, highlight, selected)
     love.graphics.setColor(1, 1, 1)
   end
 
-  love.graphics.draw(cardSprite, cardQuad, xPos, yPos, 0, Card.scale, Card.scale)
+  love.graphics.draw(cardSprite, cardQuad, xPos, yPos, cardRotation, Card.scale, Card.scale)
 end
 
 function Card:drawBack(xPos, yPos)

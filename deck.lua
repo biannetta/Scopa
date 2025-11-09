@@ -18,6 +18,11 @@ function Deck:init()
   end
 end
 
+function Deck:reshuffle()
+  self:init()
+  self:shuffle()
+end
+
 function Deck:shuffle()
   for i=self.size,1,-1 do
     local j = love.math.random(i)

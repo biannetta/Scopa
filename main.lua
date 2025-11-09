@@ -18,45 +18,28 @@ function love.load()
     end
   end
   
-  toastMessages = nil
-  toastLength = 5
-  
   game = Game()
-  game:init(2) 
+  game:init(2, 1) 
 end
 
 function love.update(dt)
-  if toastMessages ~= nil then
-    toastLength = toastLength - dt
-  end
-  
-  if toastLength < 0 then
-    toastMessages = nil
-    toastLength = 5
-  end
+  game:updateMessage(dt)
 end
 
 function love.draw()
-  local function drawText(text, row, col)
-    local pos = grid[row][col]
-    love.graphics.print(text, pos[1], pos[2])
-  end
-
   love.graphics.setBackgroundColor(0.1, 0.1, 0.15)
   love.graphics.setColor(1, 1, 1)
 
   -- Display Player Hands
   local playerGrid = {
-    { 2, 4 },
-    { 8, 4 }
+    { 8, 4 },
+    { 2, 4 }
   }
 
   for i,player in ipairs(game.players) do
     local cardArea = playerGrid[i]
     local pos = grid[cardArea[1]][cardArea[2]]
     
-    love.graphics.setColor(1, 1, 1)
-    drawText(player.name..' Hand '..'Total Captured '..player:totalCaptured(), cardArea[1] -1, cardArea[2])
     game:drawPlayerHand(player, pos[1], pos[2])
   end
   
@@ -65,12 +48,12 @@ function love.draw()
   game:drawField(grid[5][4][1], grid[5][4][2])
 
   love.graphics.setColor(1, 1, 1)
-  drawText('Current Selected Value: '..game:sumOfSet(game.currentSelection), 4, 4)
-  --love.graphics.print('Cards Remaining: '..game.deck:count(), 10, 110 + (Card.height * 2))
-  --love.graphics.print('User arrow keys and press "space" to select a card. Press "enter" to capture cards, press "x" to lay selected card on table', 10, 135 + (Card.height * 2))
+  game:drawDeck(grid[5][3][1], grid[5][3][2])
 
-  if toastMessages ~= nil then
-    love.graphics.print(toastMessages, 10, 600)
+  game:displayMessages(grid[10][5][1], grid[10][5][2])
+  
+  if game:isPaused() then
+    game:printScoreSummary(grid[2][4][1], grid[2][4][2])
   end
 end
 
@@ -95,8 +78,14 @@ function love.keypressed(key)
     if game:isValidMove() then
       game:captureCards()
       game:nextTurn()
-    else
-      toastMessages = "Cannot capture selected cards"
     end
+  end
+
+  if key == "escape" then
+    game:togglePause()
+  end
+
+  if key == "r" then
+    game:init(2)
   end
 end
